@@ -1,6 +1,7 @@
 import tensorflow as tf
 from tensorflow.keras import layers, models, optimizers
 import os
+import numpy as np
 
 class ACGAN:
     def __init__(self, img_shape=(64, 64, 1), num_classes=10, latent_dim=100):
@@ -122,7 +123,7 @@ class ACGAN:
         self.generator = models.load_model(f"{path}/acgan_generator.h5")
         self.discriminator = models.load_model(f"{path}/acgan_discriminator.h5")
         self.combined = models.load_model(f"{path}/acgan_combined.h5")
-
+        
 # Helper function to load ACGAN model
 def load_gan(model_path, gan_type='acgan'):
     if gan_type != 'acgan':
