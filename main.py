@@ -2,8 +2,9 @@ import tensorflow as tf
 import numpy as np
 import os
 from sklearn.utils import shuffle
+import tensorflow_model_optimization as tfmot
 
-from visualize import compare_generated_images, plot_training_history_comparison
+from visualize import compare_generated_images, plot_full_history_comparison
 
 import sys
 sys.path.append("./gans")
@@ -30,14 +31,9 @@ x_train = tf.image.resize(x_train, (64, 64))
 x_test = tf.image.resize(x_test, (64, 64))
 
 # Train original CNN
-#cnn = CNN(input_shape=(64, 64, 1))  # Grayscale images with 1 channel
-#history_cnn = cnn.train(x_train, y_train, x_test, y_test, epochs=10)
-#cnn.save_model()
-
-vit = TransformerModel(input_shape=(64, 64, 1))
-history_vit = vit.train(x_train, y_train, x_test, y_test, epochs=10)
-vit.save_model()
-
+cnn = CNN(input_shape=(64, 64, 1))  # Grayscale images with 1 channel
+history_cnn = cnn.train(x_train, y_train, x_test, y_test, epochs=10)
+cnn.save_model()
 
 # Function to train any GAN (ACGAN, DCGAN, WGAN, BEGAN, Pix2Pix)
 
@@ -49,52 +45,51 @@ began = BEGAN()
 
 os.makedirs('saved_models', exist_ok=True)
 
-def train_acgan(gan, x_train, y_train, epochs=10000, batch_size=8):
-    half_batch = batch_size // 2
-    augmented_images = []
-    augmented_labels = []
-    
-    for epoch in range(epochs):
-        # Select random half batch of real images
-        idx = np.random.randint(0, x_train.shape[0], half_batch)
+def train_acgan(gan, x_train, y_train, epochs=1000, batch_size=8):
+        half_batch = batch_size // 2
+        augmented_images = []
+        augmented_labels = []
         
-        # Convert idx to tf.int32 tensor for TensorFlow compatibility
-        idx = tf.convert_to_tensor(idx, dtype=tf.int32)
+        for epoch in range(epochs):
+            # Select random half batch of real images
+            idx = np.random.randint(0, x_train.shape[0], half_batch)
+            
+            # Convert idx to tf.int32 tensor for TensorFlow compatibility
+            idx = tf.convert_to_tensor(idx, dtype=tf.int32)
+            
+            # Use tf.gather to index x_train and y_train
+            imgs = tf.gather(x_train, idx)
+            labels = tf.gather(y_train, idx)
+            
+            # Generate random noise and labels for fake images
+            noise = np.random.normal(0, 1, (half_batch, gan.latent_dim))
+            gen_labels = np.random.randint(0, gan.num_classes, half_batch)
+            gen_imgs = gan.generator.predict([noise, gen_labels])
+            
+            # Train the discriminator on real and fake images
+            d_loss_real = gan.discriminator.train_on_batch(imgs, [np.ones((half_batch, 1)), labels])
+            d_loss_fake = gan.discriminator.train_on_batch(gen_imgs, [np.zeros((half_batch, 1)), gen_labels])
+            
+            # Train the generator (via the combined model)
+            noise = np.random.normal(0, 1, (batch_size, gan.latent_dim))
+            sampled_labels = np.random.randint(0, gan.num_classes, batch_size)
+            g_loss = gan.combined.train_on_batch([noise, sampled_labels], [np.ones((batch_size, 1)), sampled_labels])
+            
+            # Store augmented data for later training the CNN
+            augmented_images.extend(gen_imgs)  # Use extend to append the list of generated images
+            augmented_labels.extend(gen_labels)  # Similarly for labels
+            
+            # Print the losses at regular intervals
+            if epoch % 1000 == 0:
+                print(f"Epoch {epoch}, D Loss: {0.5 * np.add(d_loss_real, d_loss_fake)}, G Loss: {g_loss}")
         
-        # Use tf.gather to index x_train and y_train (make sure they are TensorFlow tensors)
-        imgs = tf.gather(x_train, idx)
-        labels = tf.gather(y_train, idx)
-        
-        # Generate random noise and labels for fake images
-        noise = np.random.normal(0, 1, (half_batch, gan.latent_dim))
-        gen_labels = np.random.randint(0, gan.num_classes, half_batch)
-        gen_imgs = gan.generator.predict([noise, gen_labels])
-        
-        # Train the discriminator on real and fake images
-        d_loss_real = gan.discriminator.train_on_batch([imgs, labels], [np.ones((half_batch, 1)), labels])
-        d_loss_fake = gan.discriminator.train_on_batch([gen_imgs, gen_labels], [np.zeros((half_batch, 1)), gen_labels])
-        
-        # Train the generator (via the combined model)
-        noise = np.random.normal(0, 1, (batch_size, gan.latent_dim))
-        sampled_labels = np.random.randint(0, gan.num_classes, batch_size)
-        g_loss = gan.combined.train_on_batch([noise, sampled_labels], [np.ones((batch_size, 1)), sampled_labels])
-        
-        # Store augmented data for later training the CNN
-        augmented_images.extend(gen_imgs)
-        augmented_labels.extend(gen_labels)
-        
-        # Print the losses at regular intervals
-        if epoch % 1000 == 0:
-            print(f"Epoch {epoch}, D Loss: {0.5 * np.add(d_loss_real, d_loss_fake)}, G Loss: {g_loss}")
-    
-    # Convert augmented data to numpy arrays after training is done
-    augmented_images = np.array(augmented_images)
-    augmented_labels = np.array(augmented_labels)
+        # Convert augmented data to numpy arrays after training is done
+        augmented_images = np.array(augmented_images)
+        augmented_labels = np.array(augmented_labels)
 
-    return augmented_images, augmented_labels
+        return augmented_images, augmented_labels
 
-
-def train_dcgan(dcgan, x_train, y_train, epochs=10000, batch_size=8):
+def train_dcgan(dcgan, x_train, y_train, epochs=1000, batch_size=8):
     half_batch = batch_size // 2
     augmented_images = []
     augmented_labels = []
@@ -137,7 +132,7 @@ def train_dcgan(dcgan, x_train, y_train, epochs=10000, batch_size=8):
 
     return augmented_images, augmented_labels
 
-def train_wgan(wgan, x_train, y_train, epochs=10000, batch_size=8, n_critic=5):
+def train_wgan(wgan, x_train, y_train, epochs=1000, batch_size=8, n_critic=5):
     half_batch = batch_size // 2
     augmented_images = []
     augmented_labels = []
@@ -183,7 +178,7 @@ def train_wgan(wgan, x_train, y_train, epochs=10000, batch_size=8, n_critic=5):
 
     return augmented_images, augmented_labels
 
-def train_began(began, x_train, y_train, epochs=10000, batch_size=8, n_critic=5):
+def train_began(began, x_train, y_train, epochs=1000, batch_size=8, n_critic=5):
     half_batch = batch_size // 2
     augmented_images = []
     augmented_labels = []
@@ -231,27 +226,52 @@ def train_began(began, x_train, y_train, epochs=10000, batch_size=8, n_critic=5)
 
 
 def train_cnn_with_augmented_data(augmented_images, augmented_labels, x_test, y_test, gan_name):
-    # Train CNN with augmented data
+    # Train CNN on augmented data
     cnn = CNN(input_shape=(64, 64, 1))  # Grayscale images with 1 channel
     history_cnn_augmented = cnn.train(augmented_images, augmented_labels, x_test, y_test, epochs=10)
-    
-    # Visualize training history (accuracy and loss comparison)
-    plot_training_history_comparison(history_cnn, history_cnn_augmented)
-    print(f"Training history for {gan_name} plotted.")
-    
-    # Save results for comparison
-    return history_cnn_augmented
 
-def train_transformer_with_augmented_data(augmented_images, augmented_labels, x_test, y_test, gan_name):
-    # Train ViT with augmented data
-    vit = TransformerModel(input_shape=(64, 64, 1))  # Grayscale input shape
-    history_vit_augmented = vit.train(augmented_images, augmented_labels, x_test, y_test, epochs=10)
+    # Apply pruning to the trained CNN
+    pruning_params = {
+        'pruning_schedule': tfmot.sparsity.keras.PolynomialDecay(
+            initial_sparsity=0.0,
+            final_sparsity=0.5,
+            begin_step=0,
+            end_step=np.ceil(len(augmented_images) / 32).astype(np.int32) * 5
+        )
+    }
 
-    # Visualize training history comparison
-    plot_training_history_comparison(history_vit, history_vit_augmented)
-    print(f"Training history for {gan_name} (ViT) plotted.")
+    pruned_model = tfmot.sparsity.keras.prune_low_magnitude(cnn.model, **pruning_params)
 
-    return history_vit_augmented
+    # Unfreeze last few layers for fine-tuning
+    for layer in pruned_model.layers[-4:]:
+        layer.trainable = True
+
+    pruned_model.compile(optimizer='adam', loss='sparse_categorical_crossentropy', metrics=['accuracy'])
+
+    # Pruning callback
+    pruning_callback = tfmot.sparsity.keras.UpdatePruningStep()
+
+    # Fine-tune the pruned model
+    history_pruned_augmented = pruned_model.fit(
+        augmented_images, augmented_labels,
+        epochs=5,
+        validation_data=(x_test, y_test),
+        callbacks=[pruning_callback]
+    )
+
+    # Compare all three models
+    plot_full_history_comparison(history_cnn, history_cnn_augmented, history_pruned_augmented, gan_name)
+
+    print(f"Training history for {gan_name} with pruning plotted.")
+
+    return history_cnn_augmented, history_pruned_augmented
+
+
+def generate_images(generator, num_samples=10000):
+    noise = np.random.normal(0, 1, (num_samples, 100))
+    labels = np.random.randint(0, 10, (num_samples, 1))
+    generated_images = generator.predict([noise, labels])
+    return np.concatenate((x_train, generated_images)), np.concatenate((y_train, labels.squeeze()))
 
 print('Starting ACGAN')
 augmented_images_acgan, augmented_labels_acgan = train_acgan(acgan, x_train, y_train)
@@ -265,14 +285,13 @@ augmented_images_wgan, augmented_labels_wgan = train_wgan(wgan, x_train, y_train
 print('Starting BEGAN')
 augmented_images_began, augmented_labels_began = train_began(began, x_train, y_train)
 
-
 # Normalize or clip all GAN outputs if needed
 augmented_images_acgan = np.clip(augmented_images_acgan, 0, 1)
 augmented_images_dcgan = np.clip(augmented_images_dcgan, 0, 1)
 augmented_images_wgan  = np.clip(augmented_images_wgan,  0, 1)
 augmented_images_began = np.clip(augmented_images_began, 0, 1)
 
-history_acgan = train_cnn_with_augmented_data(
+history_acgan, history_acgan_pruned = train_cnn_with_augmented_data(
     np.concatenate((x_train, augmented_images_acgan), axis=0),
     np.concatenate((y_train, augmented_labels_acgan), axis=0),
     x_test, y_test, "ACGAN"
@@ -282,7 +301,7 @@ acgan.generator.save('saved_models/acgan_generator.h5')
 acgan.discriminator.save('saved_models/acgan_discriminator.h5')
 acgan.combined.save('saved_models/acgan_combined.h5')
 
-history_dcgan = train_cnn_with_augmented_data(
+history_dcgan, history_dcgan_pruned = train_cnn_with_augmented_data(
     np.concatenate((x_train, augmented_images_dcgan), axis=0),
     np.concatenate((y_train, augmented_labels_dcgan), axis=0),
     x_test, y_test, "DCGAN"
@@ -292,17 +311,17 @@ dcgan.generator.save('saved_models/dcgan_generator.h5')
 dcgan.discriminator.save('saved_models/dcgan_discriminator.h5')
 dcgan.combined.save('saved_models/dcgan_combined.h5')
 
-history_wgan = train_cnn_with_augmented_data(
+history_wgan, history_wgan_pruned = train_cnn_with_augmented_data(
     np.concatenate((x_train, augmented_images_wgan), axis=0),
     np.concatenate((y_train, augmented_labels_wgan), axis=0),
     x_test, y_test, "WGAN"
 )
 
 wgan.generator.save('saved_models/wgan_generator.h5')
-wgan.discriminator.save('saved_models/wgan_discriminator.h5')
+wgan.discriminator.save('saved_models/wgan_critic.h5')
 wgan.combined.save('saved_models/wgan_combined.h5')
 
-history_began = train_cnn_with_augmented_data(
+history_began, history_began_pruned = train_cnn_with_augmented_data(
     np.concatenate((x_train, augmented_images_began), axis=0),
     np.concatenate((y_train, augmented_labels_began), axis=0),
     x_test, y_test, "BEGAN"
@@ -312,7 +331,6 @@ began.generator.save('saved_models/began_generator.h5')
 began.discriminator.save('saved_models/began_discriminator.h5')
 began.combined.save('saved_models/began_combined.h5')
 
-# Visualize training history (accuracy and loss comparison)
 compare_generated_images(acgan, dcgan, wgan, began)
 
 print("Models saved successfully!")
