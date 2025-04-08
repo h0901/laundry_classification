@@ -3,31 +3,30 @@ import numpy as np
 
 import matplotlib.pyplot as plt
 
-def plot_training_history_comparison(history_normal, history_augmented):
-    """
-    Compare the training history for CNNs trained on normal vs augmented data.
-    :param history_normal: History object from CNN trained on normal data
-    :param history_augmented: History object from CNN trained on augmented data
-    """
-    # Plot accuracy comparison
-    plt.figure(figsize=(12, 6))
+def plot_full_history_comparison(history_normal, history_augmented, history_pruned_augmented, gan_name):
+    plt.figure(figsize=(14, 6))
 
+    # Accuracy Comparison
     plt.subplot(1, 2, 1)
-    plt.plot(history_normal.history['accuracy'], label='Normal train accuracy')
-    plt.plot(history_normal.history['val_accuracy'], label='Normal val accuracy')
-    plt.plot(history_augmented.history['accuracy'], label='Augmented train accuracy')
-    plt.plot(history_augmented.history['val_accuracy'], label='Augmented val accuracy')
+    plt.plot(history_normal.history['accuracy'], label='Normal Train')
+    plt.plot(history_normal.history['val_accuracy'], label='Normal Val')
+    plt.plot(history_augmented.history['accuracy'], label=f'{gan_name} Train')
+    plt.plot(history_augmented.history['val_accuracy'], label=f'{gan_name} Val')
+    plt.plot(history_pruned_augmented.history['accuracy'], label=f'{gan_name} Pruned Train')
+    plt.plot(history_pruned_augmented.history['val_accuracy'], label=f'{gan_name} Pruned Val')
     plt.title('Accuracy Comparison')
     plt.xlabel('Epoch')
     plt.ylabel('Accuracy')
     plt.legend()
 
-    # Plot loss comparison
+    # Loss Comparison
     plt.subplot(1, 2, 2)
-    plt.plot(history_normal.history['loss'], label='Normal train loss')
-    plt.plot(history_normal.history['val_loss'], label='Normal val loss')
-    plt.plot(history_augmented.history['loss'], label='Augmented train loss')
-    plt.plot(history_augmented.history['val_loss'], label='Augmented val loss')
+    plt.plot(history_normal.history['loss'], label='Normal Train')
+    plt.plot(history_normal.history['val_loss'], label='Normal Val')
+    plt.plot(history_augmented.history['loss'], label=f'{gan_name} Train')
+    plt.plot(history_augmented.history['val_loss'], label=f'{gan_name} Val')
+    plt.plot(history_pruned_augmented.history['loss'], label=f'{gan_name} Pruned Train')
+    plt.plot(history_pruned_augmented.history['val_loss'], label=f'{gan_name} Pruned Val')
     plt.title('Loss Comparison')
     plt.xlabel('Epoch')
     plt.ylabel('Loss')
@@ -35,6 +34,7 @@ def plot_training_history_comparison(history_normal, history_augmented):
 
     plt.tight_layout()
     plt.show()
+
 
 def compare_generated_images(acgan, dcgan, wgan, began, num_images=10):
     noise = np.random.normal(0, 1, (num_images, acgan.latent_dim))
