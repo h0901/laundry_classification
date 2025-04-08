@@ -31,8 +31,8 @@ x_test = tf.image.resize(x_test, (64, 64))
 
 # Train original CNN
 cnn = CNN(input_shape=(64, 64, 1))  # Grayscale images with 1 channel
-#history_cnn = cnn.train(x_train, y_train, x_test, y_test, epochs=10)
-#cnn.save_model()
+history_cnn = cnn.train(x_train, y_train, x_test, y_test, epochs=10)
+cnn.save_model()
 
 # Function to train any GAN (ACGAN, DCGAN, WGAN, BEGAN, Pix2Pix)
 
@@ -44,7 +44,7 @@ began = BEGAN()
 
 os.makedirs('saved_models', exist_ok=True)
 
-def train_acgan(gan, x_train, y_train, epochs=10000, batch_size=8):
+def train_acgan(gan, x_train, y_train, epochs=1000, batch_size=8):
         half_batch = batch_size // 2
         augmented_images = []
         augmented_labels = []
@@ -88,7 +88,7 @@ def train_acgan(gan, x_train, y_train, epochs=10000, batch_size=8):
 
         return augmented_images, augmented_labels
 
-def train_dcgan(dcgan, x_train, y_train, epochs=10000, batch_size=8):
+def train_dcgan(dcgan, x_train, y_train, epochs=1000, batch_size=8):
     half_batch = batch_size // 2
     augmented_images = []
     augmented_labels = []
@@ -131,7 +131,7 @@ def train_dcgan(dcgan, x_train, y_train, epochs=10000, batch_size=8):
 
     return augmented_images, augmented_labels
 
-def train_wgan(wgan, x_train, y_train, epochs=10000, batch_size=8, n_critic=5):
+def train_wgan(wgan, x_train, y_train, epochs=1000, batch_size=8, n_critic=5):
     half_batch = batch_size // 2
     augmented_images = []
     augmented_labels = []
@@ -177,7 +177,7 @@ def train_wgan(wgan, x_train, y_train, epochs=10000, batch_size=8, n_critic=5):
 
     return augmented_images, augmented_labels
 
-def train_began(began, x_train, y_train, epochs=10000, batch_size=8, n_critic=5):
+def train_began(began, x_train, y_train, epochs=1000, batch_size=8, n_critic=5):
     half_batch = batch_size // 2
     augmented_images = []
     augmented_labels = []
