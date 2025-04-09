@@ -123,6 +123,7 @@ class ACGAN:
         self.generator = models.load_model(f"{path}/acgan_generator.h5")
         self.discriminator = models.load_model(f"{path}/acgan_discriminator.h5")
         self.combined = models.load_model(f"{path}/acgan_combined.h5")
+        return self
         
 # Helper function to load ACGAN model
 def load_gan(model_path, gan_type='acgan'):

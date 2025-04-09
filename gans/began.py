@@ -92,9 +92,10 @@ class BEGAN:
     
     # Load models from files
     def load_models(self, model_dir):
-        self.generator = tf.keras.models.load_model(f'{model_dir}/generator.h5')
-        self.discriminator = tf.keras.models.load_model(f'{model_dir}/discriminator.h5')
+        self.generator = tf.keras.models.load_model(f'{model_dir}/began_generator.h5')
+        self.discriminator = tf.keras.models.load_model(f'{model_dir}/began_discriminator.h5')
         print(f"Models loaded from {model_dir}")
+        return self
 
 # Helper function to load BEGAN model
 def load_began(model_path):

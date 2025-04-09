@@ -128,6 +128,7 @@ class DCGAN:
         self.generator = models.load_model(f"{path}/dcgan_generator.h5")
         self.discriminator = models.load_model(f"{path}/dcgan_discriminator.h5")
         self.combined = models.load_model(f"{path}/dcgan_combined.h5")
+        return self
 
 # Helper function to load DCGAN model
 def load_dcgan(model_path):

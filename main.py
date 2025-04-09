@@ -4,7 +4,7 @@ import os
 from sklearn.utils import shuffle
 import tensorflow_model_optimization as tfmot
 
-from visualize import compare_generated_images, plot_full_history_comparison
+from visualize import compare_gan_heatmaps, compare_generated_images, plot_accuracy_heatmap, plot_full_history_comparison
 
 import sys
 sys.path.append("./gans")
@@ -34,8 +34,6 @@ x_test = tf.image.resize(x_test, (64, 64))
 cnn = CNN(input_shape=(64, 64, 1))  # Grayscale images with 1 channel
 history_cnn = cnn.train(x_train, y_train, x_test, y_test, epochs=10)
 cnn.save_model()
-
-# Function to train any GAN (ACGAN, DCGAN, WGAN, BEGAN, Pix2Pix)
 
 # Initialize the GANs
 acgan = ACGAN()
@@ -254,18 +252,18 @@ def train_cnn_with_augmented_data(augmented_images, augmented_labels, x_test, y_
     # Fine-tune the pruned model
     history_pruned_augmented = pruned_model.fit(
         augmented_images, augmented_labels,
-        epochs=5,
+        epochs=10,
         validation_data=(x_test, y_test),
         callbacks=[pruning_callback]
     )
 
     # Compare all three models
     plot_full_history_comparison(history_cnn, history_cnn_augmented, history_pruned_augmented, gan_name)
+    plot_accuracy_heatmap(history_cnn, history_cnn_augmented, history_pruned_augmented, gan_name)
 
     print(f"Training history for {gan_name} with pruning plotted.")
 
     return history_cnn_augmented, history_pruned_augmented
-
 
 def generate_images(generator, num_samples=10000):
     noise = np.random.normal(0, 1, (num_samples, 100))
@@ -311,16 +309,6 @@ dcgan.generator.save('saved_models/dcgan_generator.h5')
 dcgan.discriminator.save('saved_models/dcgan_discriminator.h5')
 dcgan.combined.save('saved_models/dcgan_combined.h5')
 
-history_wgan, history_wgan_pruned = train_cnn_with_augmented_data(
-    np.concatenate((x_train, augmented_images_wgan), axis=0),
-    np.concatenate((y_train, augmented_labels_wgan), axis=0),
-    x_test, y_test, "WGAN"
-)
-
-wgan.generator.save('saved_models/wgan_generator.h5')
-wgan.discriminator.save('saved_models/wgan_critic.h5')
-wgan.combined.save('saved_models/wgan_combined.h5')
-
 history_began, history_began_pruned = train_cnn_with_augmented_data(
     np.concatenate((x_train, augmented_images_began), axis=0),
     np.concatenate((y_train, augmented_labels_began), axis=0),
@@ -331,6 +319,25 @@ began.generator.save('saved_models/began_generator.h5')
 began.discriminator.save('saved_models/began_discriminator.h5')
 began.combined.save('saved_models/began_combined.h5')
 
+history_wgan, history_wgan_pruned = train_cnn_with_augmented_data(
+    np.concatenate((x_train, augmented_images_wgan), axis=0),
+    np.concatenate((y_train, augmented_labels_wgan), axis=0),
+    x_test, y_test, "WGAN"
+)
+
+wgan.generator.save('saved_models/wgan_generator.h5')
+wgan.critic.save('saved_models/wgan_critic.h5')
+wgan.combined.save('saved_models/wgan_combined.h5')
+
 compare_generated_images(acgan, dcgan, wgan, began)
+
+gans = {
+    'ACGAN': acgan,
+    'DCGAN': dcgan,
+    'WGAN': wgan,
+    'BEGAN': began
+}
+
+compare_gan_heatmaps(gans, num_images=6)
 
 print("Models saved successfully!")

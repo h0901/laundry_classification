@@ -128,6 +128,7 @@ class WGAN:
         self.generator = models.load_model(f"{path}/wgan_generator.h5")
         self.critic = models.load_model(f"{path}/wgan_critic.h5")
         self.combined = models.load_model(f"{path}/wgan_combined.h5")
+        return self
 
 # Helper function to load WGAN model
 def load_gan(model_path, gan_type='wgan'):
