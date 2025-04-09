@@ -24,7 +24,15 @@ class LaundryGANApp:
         cnn = CNN(input_shape=(64, 64, 1))
 
         # Load the pre-trained CNN model from main.py
-        self.cnn_model = cnn.load_model(path='saved_models/cnn')
+        try:
+            self.cnn_model = cnn.load_model(path='saved_models/cnn.h5')
+            if self.cnn_model is None:
+                raise ValueError("Model loading failed.")
+        except Exception as e:
+            print(f"Error loading model: {e}")
+            messagebox.showerror("Model Loading Error", f"Failed to load the CNN model. Please check the model path.")
+            return  # Stop further execution if the model is not loaded correctly
+
         self.init_ui()
 
     def init_ui(self):
@@ -78,28 +86,67 @@ class LaundryGANApp:
         self.image_label.image = img_tk
         
     def apply_gan(self):
-        gan_type = self.selected_gan.get()
-        gan = self.gan_options[gan_type]()  # Instantiate the selected GAN
-        self.image_array = np.array(self.image_array) / 127.5 - 1  # Normalize the image
+        if hasattr(self, 'image_array') and self.image_array is not None:
+            gan_type = self.selected_gan.get()
+            gan = self.gan_options[gan_type]()  # Instantiate the selected GAN
+        
+        # Normalize the image
+            self.image_array = np.array(self.image_array) / 127.5 - 1  # Normalize the image
         
         # Apply GAN augmentation to the image_array
-        augmented_img = gan.generate_samples(1, class_label=0)[0]  # Generate augmented image
+            augmented_img = gan.generate_samples(1, class_label=0)[0]  # Generate augmented image
         
         # Rescale the augmented image back to [0, 255]
-        augmented_img_rescaled = (augmented_img + 1) * 127.5
-        augmented_img_rescaled = np.clip(augmented_img_rescaled, 0, 255).astype(np.uint8)  # Ensure values are in valid range
+            augmented_img_rescaled = (augmented_img + 1) * 127.5
+            augmented_img_rescaled = np.clip(augmented_img_rescaled, 0, 255).astype(np.uint8)  # Ensure values are in valid range
+
+        # Debugging: Check the shape and type of the augmented image
+            print("Augmented image shape:", augmented_img_rescaled.shape)
+            print("Augmented image dtype:", augmented_img_rescaled.dtype)
+
+        # Convert to grayscale and remove the channel dimension
+            augmented_img_rescaled = augmented_img_rescaled.reshape(64, 64)  # Ensure it's 2D for grayscale
+        
+        # Debugging: Check the shape and type after reshaping
+            print("Reshaped augmented image shape:", augmented_img_rescaled.shape)
+            print("Reshaped augmented image dtype:", augmented_img_rescaled.dtype)
 
         # Convert the augmented image into a format suitable for display
-        self.image = Image.fromarray(augmented_img_rescaled)
+            self.image = Image.fromarray(augmented_img_rescaled)  # This should work now
         
-        self.display_image()  # Display the augmented image
-        messagebox.showinfo("GAN Augmentation", f"Applied {gan_type} augmentation")
-
+            self.display_image()  # Display the augmented image
+            messagebox.showinfo("GAN Augmentation", f"Applied {gan_type} augmentation")
+        else:
+            messagebox.showerror("Error", "No image uploaded. Please upload an image first.")
 
     def classify_image(self):
-        img_array = self.image_array.reshape((1, 64, 64, 1)) / 255.0  # Reshape to match CNN input
-        prediction = np.argmax(self.cnn_model.predict(img_array))
-        self.result_label.config(text=f"Result: {prediction}")
+    # Check if an image is uploaded
+        if hasattr(self, 'image_array') and self.image_array is not None:
+        # Normalize and reshape the image
+            img_array = self.image_array.reshape((1, 64, 64, 1)) / 255.0
+
+        # Ensure CNN model is loaded
+            if self.cnn_model is None:
+                messagebox.showerror("Error", "CNN model not loaded.")
+                return
+
+        # Get prediction probabilities
+            prediction = self.cnn_model.predict(img_array)
+            predicted_class = np.argmax(prediction)
+
+            # Print all prediction probabilities for debugging
+            print("Prediction probabilities:", prediction[0])
+
+            # Optionally: map class indices to Fashion MNIST labels
+            class_labels = ['T-shirt/top', 'Trouser', 'Pullover', 'Dress', 'Coat',
+                            'Sandal', 'Shirt', 'Sneaker', 'Bag', 'Ankle boot']
+
+            label = class_labels[predicted_class]
+
+            self.result_label.config(text=f"Predicted Class: {predicted_class} ({label})")
+        else:
+            messagebox.showerror("Error", "No image uploaded. Please upload an image first.")
+
 
     def visualize_gans_comparison(self):
         gan_types = list(self.gan_options.keys())

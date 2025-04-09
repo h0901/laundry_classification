@@ -31,10 +31,11 @@ class CNN:
         history = self.model.fit(x_train, y_train, epochs=epochs, validation_data=(x_test, y_test))
         return history  # Ensure this is returned
 
-    def save_model(self, path='saved_models/cnn'):
+    def save_model(self, path='saved_models/cnn.h5'):
         """Save the trained model."""
         self.model.save(path)
 
-    def load_model(self, path='saved_models/cnn'):
+    def load_model(self, path='saved_models/cnn.h5'):
         """Load a pre-trained model."""
         self.model = tf.keras.models.load_model(path)
+        return self.model
