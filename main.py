@@ -231,22 +231,23 @@ def train_cnn_with_augmented_data(augmented_images, augmented_labels, x_test, y_
     # Apply pruning to the trained CNN
     pruning_params = {
         'pruning_schedule': tfmot.sparsity.keras.PolynomialDecay(
-            initial_sparsity=0.0,
-            final_sparsity=0.5,
-            begin_step=0,
-            end_step=np.ceil(len(augmented_images) / 32).astype(np.int32) * 5
+            initial_sparsity=0.0,  # No pruning at the start
+            final_sparsity=0.8,  # 80% sparsity
+            begin_step=0,  # Start pruning from step 0
+            end_step=np.ceil(len(augmented_images) / 32).astype(np.int32) * 5  # Adjust this for total training steps
         )
     }
 
+    # Prune the model
     pruned_model = tfmot.sparsity.keras.prune_low_magnitude(cnn.model, **pruning_params)
 
-    # Unfreeze last few layers for fine-tuning
+    # Unfreeze last few layers for fine-tuning after pruning
     for layer in pruned_model.layers[-4:]:
         layer.trainable = True
 
     pruned_model.compile(optimizer='adam', loss='sparse_categorical_crossentropy', metrics=['accuracy'])
 
-    # Pruning callback
+    # Create pruning callback for dynamic pruning
     pruning_callback = tfmot.sparsity.keras.UpdatePruningStep()
 
     # Fine-tune the pruned model
@@ -257,7 +258,7 @@ def train_cnn_with_augmented_data(augmented_images, augmented_labels, x_test, y_
         callbacks=[pruning_callback]
     )
 
-    # Compare all three models
+    # Plotting comparison between original, augmented, and pruned models
     plot_full_history_comparison(history_cnn, history_cnn_augmented, history_pruned_augmented, gan_name)
     plot_accuracy_heatmap(history_cnn, history_cnn_augmented, history_pruned_augmented, gan_name)
 
